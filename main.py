@@ -22,9 +22,14 @@ from federated_server import FederatedServer, ServerConfig
 from communication import CommunicationHub, ClientCommunicator, ServerCommunicator
 
 # Setup logging
+os.makedirs("./checkpoints", exist_ok=True)  # Ensure directory exists
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('./checkpoints/federated_learning.log'),
+        logging.StreamHandler()  # Also keep console output
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -183,6 +188,18 @@ class FederatedLearningSimulation:
         Returns:
             Round summary
         """
+        # Create CSV files for metrics if they don't exist
+        client_metrics_file = os.path.join(self.config.checkpoint_dir, 'client_metrics.csv')
+        aggregated_metrics_file = os.path.join(self.config.checkpoint_dir, 'aggregated_metrics.csv')
+        
+        # Initialize CSV files with headers if they don't exist
+        if not os.path.exists(client_metrics_file):
+            with open(client_metrics_file, 'w') as f:
+                f.write('round,client_id,loss,num_samples\n')
+        
+        if not os.path.exists(aggregated_metrics_file):
+            with open(aggregated_metrics_file, 'w') as f:
+                f.write('round,duration,num_clients,avg_loss,eval_loss,eval_perplexity\n')
         logger.info(f"\n{'='*60}")
         logger.info(f"ROUND {round_number}/{self.config.num_rounds}")
         logger.info(f"{'='*60}")
@@ -247,6 +264,18 @@ class FederatedLearningSimulation:
         logger.info(f"  - Average training loss: {round_metrics['avg_loss']:.4f}")
         logger.info(f"  - Evaluation loss: {round_metrics['eval_loss']:.4f}")
         logger.info(f"  - Perplexity: {round_metrics['eval_perplexity']:.2f}")
+        
+        # Write client metrics to CSV
+        client_metrics_file = os.path.join(self.config.checkpoint_dir, 'client_metrics.csv')
+        with open(client_metrics_file, 'a') as f:
+            for client_update in round_metrics['client_updates']:
+                f.write(f"{round_number},{client_update['client_id']},{client_update['loss']:.4f},{client_update['num_samples']}\n")
+        
+        # Write aggregated metrics to CSV
+        aggregated_metrics_file = os.path.join(self.config.checkpoint_dir, 'aggregated_metrics.csv')
+        with open(aggregated_metrics_file, 'a') as f:
+            f.write(f"{round_number},{round_metrics['duration']:.2f},{round_metrics['num_clients']},"
+                   f"{round_metrics['avg_loss']:.4f},{round_metrics['eval_loss']:.4f},{round_metrics['eval_perplexity']:.2f}\n")
         
         return round_metrics
     
